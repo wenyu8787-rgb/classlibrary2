@@ -1,0 +1,2820 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班級圖書借用系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        body {
+            box-sizing: border-box;
+        }
+        .book-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .book-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        .borrowed {
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-purple-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- 標題區域 -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-blue-800 mb-2">📚 班級圖書館</h1>
+            <p class="text-gray-600 text-lg">歡迎來到我們的小小圖書館！</p>
+            <div class="mt-4 space-y-2">
+                <!-- 連線狀態顯示 -->
+                <div id="connectionStatus" class="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-2 rounded-lg text-sm">
+                    <span id="connectionStatusText">🔄 正在檢查 Google Apps Script 連線...</span>
+                </div>
+                
+                <!-- 功能按鈕 -->
+                <div>
+                    <button onclick="showConfigurationHelp()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm">
+                        ⚙️ Google Apps Script 設定說明
+                    </button>
+                    <button onclick="loadFromGoogleSheets()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm ml-2" id="loadDataBtn">
+                        🔄 重新載入資料
+                    </button>
+                    <button onclick="testConnection()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm ml-2">
+                        🔍 測試連線
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分頁導航 -->
+        <div class="bg-white rounded-xl p-2 shadow-lg mb-8">
+            <div class="flex space-x-1">
+                <button id="borrowingTab" class="flex-1 py-3 px-6 rounded-lg font-medium transition-colors bg-blue-600 text-white">
+                    📚 借用系統
+                </button>
+                <button id="managementTab" class="flex-1 py-3 px-6 rounded-lg font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200">
+                    🛠️ 圖書管理
+                </button>
+            </div>
+        </div>
+
+        <!-- 借用系統分頁 -->
+        <div id="borrowingPage" class="tab-content">
+            <!-- 借還書統計 -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white rounded-xl p-6 shadow-lg text-center">
+                    <div class="text-3xl mb-2">✅</div>
+                    <div class="text-2xl font-bold text-green-600" id="availableBooks">0</div>
+                    <div class="text-gray-600">可借閱</div>
+                </div>
+                <div class="bg-white rounded-xl p-6 shadow-lg text-center">
+                    <div class="text-3xl mb-2">📚</div>
+                    <div class="text-2xl font-bold text-red-600" id="borrowedBooks">0</div>
+                    <div class="text-gray-600">已借出</div>
+                </div>
+                <div class="bg-white rounded-xl p-6 shadow-lg text-center">
+                    <div class="text-3xl mb-2">🔄</div>
+                    <div class="text-2xl font-bold text-blue-600" id="todayTransactions">0</div>
+                    <div class="text-gray-600">今日借還</div>
+                </div>
+            </div>
+
+            <!-- 借書表單 -->
+            <div class="bg-white rounded-xl p-6 shadow-lg mb-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">🎯 借書 / 還書</h2>
+                <form id="borrowForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">選擇學生</label>
+                        <select id="studentSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+                            <option value="">請選擇學生</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">選擇書籍</label>
+                        <select id="bookSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+                            <option value="">請選擇書籍</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end gap-2">
+                        <button type="submit" id="borrowBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            借書
+                        </button>
+                        <button type="button" id="returnBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            還書
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 目前借閱狀況 -->
+            <div class="bg-white rounded-xl p-6 shadow-lg mb-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">📋 目前借閱狀況</h2>
+                <div id="currentBorrowings" class="space-y-3">
+                    <!-- 目前借閱將由 JavaScript 生成 -->
+                </div>
+            </div>
+
+            <!-- 借閱記錄 -->
+            <div class="bg-white rounded-xl p-6 shadow-lg">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">📋 借閱記錄</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full table-auto">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">時間</th>
+                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">學生</th>
+                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">座號</th>
+                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">書籍</th>
+                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">狀態</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordsTable">
+                            <!-- 記錄將由 JavaScript 生成 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 圖書管理分頁 -->
+        <div id="managementPage" class="tab-content hidden">
+            <!-- 統計資訊 -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white rounded-xl p-6 shadow-lg text-center">
+                    <div class="text-3xl mb-2">📖</div>
+                    <div class="text-2xl font-bold text-blue-600" id="totalBooks">0</div>
+                    <div class="text-gray-600">總書籍數</div>
+                </div>
+                <div class="bg-white rounded-xl p-6 shadow-lg text-center">
+                    <div class="text-3xl mb-2">👥</div>
+                    <div class="text-2xl font-bold text-purple-600" id="totalStudents">0</div>
+                    <div class="text-gray-600">班級人數</div>
+                </div>
+                <div class="bg-white rounded-xl p-6 shadow-lg text-center">
+                    <div class="text-3xl mb-2">📋</div>
+                    <div class="text-2xl font-bold text-orange-600" id="totalRecords">0</div>
+                    <div class="text-gray-600">借閱記錄</div>
+                </div>
+            </div>
+
+            <!-- 資料管理功能區 -->
+            <div class="bg-white rounded-xl p-6 shadow-lg mb-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">💾 資料管理</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <button onclick="exportData()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2">
+                        <span>📤</span>
+                        <span>匯出資料</span>
+                    </button>
+                    <div class="relative">
+                        <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(event)">
+                        <button onclick="document.getElementById('importFile').click()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2">
+                            <span>📥</span>
+                            <span>匯入資料</span>
+                        </button>
+                    </div>
+                    <button onclick="clearAllData()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2">
+                        <span>🗑️</span>
+                        <span>清空資料</span>
+                    </button>
+                </div>
+                <div class="mt-4">
+                    <button onclick="addTestBook()" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        🔍 診斷 Google Apps Script 連線問題
+                    </button>
+                    <div class="relative mt-2">
+                        <input type="file" id="viewJsonFile" accept=".json" class="hidden" onchange="viewJsonFile(event)">
+                        <button onclick="document.getElementById('viewJsonFile').click()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            👁️ JSON檔觀看器
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-4 text-sm text-gray-600">
+                    <p><strong>💡 使用說明：</strong></p>
+                    <p>• 匯出資料：將所有書籍、學生和借閱記錄下載為 JSON 檔案</p>
+                    <p>• 匯入資料：從 JSON 檔案載入資料（會覆蓋現有資料）</p>
+                    <p>• 清空資料：刪除所有書籍、學生和借閱記錄</p>
+                    <p>• 診斷按鈕：檢查 Google Apps Script 連線和權限問題</p>
+                    <p>• JSON檔觀看器：查看和分析 JSON 檔案內容，確認資料格式</p>
+                </div>
+            </div>
+
+            <!-- 管理功能區 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <!-- 新增圖書 -->
+                <div class="bg-white rounded-xl p-6 shadow-lg">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">📚 批量匯入圖書</h2>
+                    <form id="addBookForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">圖書清單 (格式：書名 - 作者)</label>
+                            <textarea id="bookList" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-32" placeholder="請輸入圖書清單，每行一本書&#10;例如：&#10;小王子 - 聖修伯里&#10;哈利波特 - J.K.羅琳&#10;格林童話 - 格林兄弟" required></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            📚 批量新增圖書
+                        </button>
+                    </form>
+                </div>
+
+                <!-- 新增學生 -->
+                <div class="bg-white rounded-xl p-6 shadow-lg">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">👥 批量匯入學生</h2>
+                    <form id="addStudentForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">學生清單 (格式：座號姓名)</label>
+                            <textarea id="studentList" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-32" placeholder="請輸入學生清單，每行一位學生&#10;例如：&#10;01王小明&#10;02李小華&#10;03張小美" required></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            👥 批量新增學生
+                        </button>
+                    </form>
+                    
+                    <!-- 學生清單 -->
+                    <div class="mt-4">
+                        <h3 class="text-sm font-medium text-gray-700 mb-2">目前學生 (<span id="studentCount">0</span>人)</h3>
+                        <div class="max-h-32 overflow-y-auto bg-gray-50 rounded-lg p-3">
+                            <div id="studentListDisplay" class="text-sm text-gray-600">
+                                <!-- 學生清單將由 JavaScript 生成 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 書籍展示區 -->
+            <div class="bg-white rounded-xl p-6 shadow-lg">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">📚 書籍清單</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="booksGrid">
+                    <!-- 書籍卡片將由 JavaScript 生成 -->
+                </div>
+            </div>
+        </div>
+
+            <!-- 借書表單 -->
+            <div class="bg-white rounded-xl p-6 shadow-lg mb-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">🎯 借書 / 還書</h2>
+                <form id="borrowForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">選擇學生</label>
+                        <select id="studentSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+                            <option value="">請選擇學生</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">選擇書籍</label>
+                        <select id="bookSelect" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required>
+                            <option value="">請選擇書籍</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end gap-2">
+                        <button type="submit" id="borrowBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            借書
+                        </button>
+                        <button type="button" id="returnBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                            還書
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 目前借閱狀況 -->
+            <div class="bg-white rounded-xl p-6 shadow-lg mb-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">📋 目前借閱狀況</h2>
+                <div id="currentBorrowings" class="space-y-3">
+                    <!-- 目前借閱將由 JavaScript 生成 -->
+                </div>
+            </div>
+
+            <!-- 借閱記錄 -->
+            <div class="bg-white rounded-xl p-6 shadow-lg">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">📋 借閱記錄</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full table-auto">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">時間</th>
+                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">學生</th>
+                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">座號</th>
+                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">書籍</th>
+                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">狀態</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordsTable">
+                            <!-- 記錄將由 JavaScript 生成 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Google Apps Script 設定
+        const GOOGLE_APPS_SCRIPT_CONFIG = {
+            // 您的 Google Sheets 網址
+            SHEET_URL: 'https://docs.google.com/spreadsheets/d/14ezezsWeEnb-d8iL-E5B40xa51hYgki2KFn7vLytENw/edit#gid=0',
+            // 您的 Google Apps Script Web App URL
+            WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbzrtv86pXD_eDgYL94PWLe1TkYQcx8ybHBf39HQr5g4xzp9kjBFyRPGSzSrtwJlFLA1/exec'
+        };
+
+        // 連線狀態變數
+        let isConnected = false;
+
+        // 工作表名稱
+        const SHEET_NAMES = {
+            BOOKS: '書籍清單',
+            STUDENTS: '學生名單', 
+            RECORDS: '借閱記錄'
+        };
+
+        // 書籍資料
+        let books = [];
+
+        // 學生資料
+        let students = [];
+
+        let nextBookId = 1;
+        let nextStudentId = 1;
+
+        // 借閱記錄
+        let borrowRecords = [];
+
+        // Google Apps Script API 相關函數
+        async function loadFromGoogleSheets() {
+            try {
+                showLoadingMessage('正在從 Google Apps Script 載入資料...');
+                
+                // 檢查 URL 設定
+                if (GOOGLE_APPS_SCRIPT_CONFIG.WEB_APP_URL === 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec') {
+                    hideLoadingMessage();
+                    updateConnectionStatus('⚠️ 請先設定 Google Apps Script URL', 'yellow');
+                    alert('請先完成 Google Apps Script 設定！\n\n點擊「⚙️ Google Apps Script 設定說明」查看詳細步驟。');
+                    return;
+                }
+                
+                // 使用改進的 fetch 方式
+                const response = await fetchWithRetry(GOOGLE_APPS_SCRIPT_CONFIG.WEB_APP_URL + '?action=loadAll');
+                
+                if (response.error) {
+                    throw new Error(response.error);
+                }
+                
+                // 載入資料
+                books = response.books || [];
+                students = response.students || [];
+                borrowRecords = response.records || [];
+                
+                // 更新 ID 計數器
+                nextBookId = Math.max(...books.map(b => b.id), 0) + 1;
+                nextStudentId = Math.max(...students.map(s => s.id), 0) + 1;
+                
+                hideLoadingMessage();
+                updateAllDisplays();
+                updateConnectionStatus('✅ 資料載入成功', 'green');
+                
+                console.log(`載入完成: ${books.length} 本書籍, ${students.length} 位學生, ${borrowRecords.length} 筆記錄`);
+                
+            } catch (error) {
+                console.error('載入資料失敗:', error);
+                hideLoadingMessage();
+                updateConnectionStatus('❌ 資料載入失敗', 'red');
+                
+                // 提供更詳細的錯誤診斷
+                let errorMessage = '載入資料失敗！\n\n';
+                
+                if (error.message.includes('HTTP 404')) {
+                    errorMessage += '🔧 404 錯誤解決方案：\n\n';
+                    errorMessage += '1. 檢查 WEB_APP_URL 是否正確\n';
+                    errorMessage += '2. 確認 Google Apps Script 已正確部署\n';
+                    errorMessage += '3. 檢查 Script ID 是否完整\n\n';
+                } else if (error.message.includes('HTTP 403')) {
+                    errorMessage += '🔧 403 權限錯誤解決方案：\n\n';
+                    errorMessage += '1. 重新部署 Web App\n';
+                    errorMessage += '2. 確認權限設定為「任何人」\n';
+                    errorMessage += '3. 檢查 Google 帳號權限\n\n';
+                } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    errorMessage += '🔧 網路連線問題解決方案：\n\n';
+                    errorMessage += '1. 檢查網路連線狀態\n';
+                    errorMessage += '2. 嘗試重新整理頁面\n';
+                    errorMessage += '3. 檢查防火牆設定\n';
+                    errorMessage += '4. 嘗試使用其他網路\n\n';
+                } else if (error.message.includes('CORS')) {
+                    errorMessage += '🔧 CORS 錯誤解決方案：\n\n';
+                    errorMessage += '1. 重新部署 Google Apps Script\n';
+                    errorMessage += '2. 等待 1-2 分鐘讓部署生效\n';
+                    errorMessage += '3. 確認程式碼包含正確的 CORS 標頭\n\n';
+                } else {
+                    errorMessage += '🔧 一般錯誤解決方案：\n\n';
+                    errorMessage += '1. 檢查 Google Apps Script 程式碼\n';
+                    errorMessage += '2. 確認工作表名稱正確\n';
+                    errorMessage += '3. 重新部署 Web App\n\n';
+                }
+                
+                errorMessage += `錯誤詳情：${error.message}\n\n`;
+                errorMessage += '💡 建議：點擊「🔍 診斷 Google Apps Script 連線問題」進行詳細檢查';
+                
+                alert(errorMessage);
+            }
+        }
+
+        // 改用 fetch 方式處理 CORS 問題
+        async function fetchWithRetry(url, options = {}) {
+            const maxRetries = 3;
+            let lastError;
+            
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    console.log(`嘗試第 ${i + 1} 次連線:`, url);
+                    
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        mode: 'cors',
+                        cache: 'no-cache',
+                        ...options
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log('連線成功，收到資料:', data);
+                    return data;
+                    
+                } catch (error) {
+                    console.error(`第 ${i + 1} 次嘗試失敗:`, error);
+                    lastError = error;
+                    
+                    // 如果不是最後一次嘗試，等待後重試
+                    if (i < maxRetries - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+                    }
+                }
+            }
+            
+            throw lastError;
+        }
+
+        async function saveToGoogleSheets(type, data) {
+            try {
+                showSaveMessage('正在儲存到 Google Apps Script...');
+                
+                console.log(`準備儲存 ${type} 資料:`, data);
+                console.log('WEB_APP_URL:', GOOGLE_APPS_SCRIPT_CONFIG.WEB_APP_URL);
+                
+                // 檢查 URL 設定
+                if (GOOGLE_APPS_SCRIPT_CONFIG.WEB_APP_URL === 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec') {
+                    hideSaveMessage();
+                    alert('請先完成 Google Apps Script 設定！');
+                    return false;
+                }
+                
+                // 使用 GET 方法進行資料寫入（避免 POST 的 CORS 問題）
+                const payload = {
+                    action: 'save',
+                    type: type,
+                    data: JSON.stringify(data)
+                };
+                
+                // 將資料編碼為 URL 參數
+                const params = new URLSearchParams(payload);
+                const url = `${GOOGLE_APPS_SCRIPT_CONFIG.WEB_APP_URL}?${params.toString()}`;
+                
+                console.log('發送 GET 請求到:', url.substring(0, 200) + '...');
+                
+                // 使用 GET 方法避免 CORS 問題
+                const response = await fetchWithRetry(url);
+                
+                if (response.error) {
+                    throw new Error(response.error);
+                }
+                
+                console.log(`✅ 成功儲存 ${type} 資料:`, data.length, '筆');
+                hideSaveMessage();
+                
+                // 顯示成功訊息
+                showSuccessMessage(`✅ 已儲存 ${data.length} 筆 ${type} 資料到 Google Sheets`);
+                
+                return true;
+                
+            } catch (error) {
+                console.error('❌ 儲存失敗:', error);
+                hideSaveMessage();
+                
+                let errorMessage = `儲存 ${type} 資料失敗！\n\n`;
+                
+                if (error.message.includes('不支援的操作')) {
+                    errorMessage += '🔧 Google Apps Script 操作錯誤解決方案：\n\n';
+                    errorMessage += '1. 確認 Google Apps Script 程式碼是最新版本\n';
+                    errorMessage += '2. 檢查 doGet 函數是否正確處理 save 操作\n';
+                    errorMessage += '3. 重新部署 Web App（選擇新版本）\n';
+                    errorMessage += '4. 確認工作表名稱完全正確\n\n';
+                } else if (error.message.includes('HTTP 404')) {
+                    errorMessage += '🔧 404 錯誤解決方案：\n\n';
+                    errorMessage += '1. 檢查 WEB_APP_URL 是否正確\n';
+                    errorMessage += '2. 確認 Google Apps Script 已正確部署\n';
+                    errorMessage += '3. 檢查 Script ID 是否完整\n\n';
+                } else if (error.message.includes('HTTP 403')) {
+                    errorMessage += '🔧 403 權限錯誤解決方案：\n\n';
+                    errorMessage += '1. 重新部署 Web App\n';
+                    errorMessage += '2. 確認權限設定為「任何人」\n';
+                    errorMessage += '3. 檢查 Google 帳號權限\n\n';
+                } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    errorMessage += '🔧 網路連線問題解決方案：\n\n';
+                    errorMessage += '1. 檢查網路連線速度\n';
+                    errorMessage += '2. 嘗試重新整理頁面後再試\n';
+                    errorMessage += '3. 檢查防火牆設定\n';
+                    errorMessage += '4. 嘗試使用其他網路\n\n';
+                } else {
+                    errorMessage += '🔧 一般錯誤解決方案：\n\n';
+                    errorMessage += '1. 檢查 WEB_APP_URL 是否正確\n';
+                    errorMessage += '2. 確認 Google Apps Script 已正確部署\n';
+                    errorMessage += '3. 檢查工作表名稱和結構\n';
+                    errorMessage += '4. 嘗試重新部署 Web App\n\n';
+                }
+                
+                errorMessage += `錯誤詳情：${error.message}\n\n`;
+                errorMessage += '💡 資料已儲存在本地，不會遺失。\n';
+                errorMessage += '請修復連線問題後，點擊「重新載入資料」同步。';
+                
+                alert(errorMessage);
+                return false;
+            }
+        }
+
+
+
+        function showLoadingMessage(message) {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'loadingMessage';
+            loadingDiv.className = 'fixed top-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+            loadingDiv.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    <span>${message}</span>
+                </div>
+            `;
+            document.body.appendChild(loadingDiv);
+        }
+
+        function hideLoadingMessage() {
+            const loadingDiv = document.getElementById('loadingMessage');
+            if (loadingDiv) {
+                loadingDiv.remove();
+            }
+        }
+
+        function showSaveMessage(message) {
+            const saveDiv = document.createElement('div');
+            saveDiv.id = 'saveMessage';
+            saveDiv.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+            saveDiv.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    <span>${message}</span>
+                </div>
+            `;
+            document.body.appendChild(saveDiv);
+        }
+
+        function hideSaveMessage() {
+            const saveDiv = document.getElementById('saveMessage');
+            if (saveDiv) {
+                saveDiv.remove();
+            }
+        }
+
+        function showSuccessMessage(message) {
+            // 移除現有的成功訊息
+            const existingMsg = document.getElementById('successMessage');
+            if (existingMsg) {
+                existingMsg.remove();
+            }
+            
+            const successDiv = document.createElement('div');
+            successDiv.id = 'successMessage';
+            successDiv.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+            successDiv.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <span>✅</span>
+                    <span>${message}</span>
+                </div>
+            `;
+            document.body.appendChild(successDiv);
+            
+            // 3秒後自動移除
+            setTimeout(() => {
+                if (successDiv && successDiv.parentNode) {
+                    successDiv.remove();
+                }
+            }, 3000);
+        }
+
+        // 更新連線狀態顯示
+        function updateConnectionStatus(message, color) {
+            const statusDiv = document.getElementById('connectionStatus');
+            const statusText = document.getElementById('connectionStatusText');
+            
+            statusText.textContent = message;
+            
+            // 移除所有顏色類別
+            statusDiv.className = statusDiv.className.replace(/bg-\w+-100|border-\w+-400|text-\w+-800/g, '');
+            
+            // 添加新的顏色類別
+            if (color === 'green') {
+                statusDiv.className += ' bg-green-100 border-green-400 text-green-800';
+                isConnected = true;
+            } else if (color === 'red') {
+                statusDiv.className += ' bg-red-100 border-red-400 text-red-800';
+                isConnected = false;
+            } else {
+                statusDiv.className += ' bg-yellow-100 border-yellow-400 text-yellow-800';
+                isConnected = false;
+            }
+        }
+
+        // 測試連線功能
+        async function testConnection() {
+            try {
+                updateConnectionStatus('🔄 正在測試連線...', 'yellow');
+                
+                // 檢查 URL 設定
+                if (GOOGLE_APPS_SCRIPT_CONFIG.WEB_APP_URL === 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec') {
+                    updateConnectionStatus('⚠️ 請先設定 Google Apps Script URL', 'yellow');
+                    alert('請先完成 Google Apps Script 設定！\n\n點擊「⚙️ Google Apps Script 設定說明」查看詳細步驟。');
+                    return;
+                }
+                
+                const result = await fetchWithRetry(GOOGLE_APPS_SCRIPT_CONFIG.WEB_APP_URL + '?action=test');
+                
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+                
+                updateConnectionStatus('✅ 連線測試成功', 'green');
+                alert('🎉 Google Apps Script 連線測試成功！\n\n系統已準備就緒，可以正常使用所有功能。');
+                
+            } catch (error) {
+                console.error('連線測試失敗:', error);
+                updateConnectionStatus('❌ 連線測試失敗', 'red');
+                
+                let errorMessage = '❌ Google Apps Script 連線測試失敗！\n\n';
+                if (error.message.includes('HTTP 404')) {
+                    errorMessage += '錯誤：找不到 Google Apps Script\n請檢查 WEB_APP_URL 是否正確';
+                } else if (error.message.includes('HTTP 403')) {
+                    errorMessage += '錯誤：沒有權限存取\n請檢查 Web App 權限設定';
+                } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    errorMessage += '錯誤：無法連接到 Google Apps Script\n可能原因：\n• URL 不正確\n• 網路連線問題\n• CORS 設定問題';
+                } else {
+                    errorMessage += `錯誤詳情：${error.message}`;
+                }
+                
+                errorMessage += '\n\n點擊「⚙️ Google Apps Script 設定說明」查看詳細設定步驟。';
+                alert(errorMessage);
+            }
+        }
+
+        // Google Apps Script 設定說明
+        function showConfigurationHelp() {
+            const helpDiv = document.createElement('div');
+            helpDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            helpDiv.innerHTML = `
+                <div class="bg-white rounded-xl p-8 max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">⚙️ Google Apps Script 設定說明</h2>
+                    <div class="space-y-4 text-sm text-gray-600">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <h3 class="font-bold text-blue-800 mb-2">🌟 為什麼選擇 Google Apps Script？</h3>
+                            <ul class="list-disc list-inside space-y-1 text-blue-700">
+                                <li>完全免費，無需付費 API</li>
+                                <li>設定簡單，只需幾個步驟</li>
+                                <li>自動處理權限和認證</li>
+                                <li>直接與 Google Sheets 整合</li>
+                                <li>支援完整的讀寫功能</li>
+                            </ul>
+                        </div>
+                        
+                        <div>
+                            <h3 class="font-bold text-gray-800 mb-2">步驟 1: 建立 Google Sheets</h3>
+                            <ol class="list-decimal list-inside space-y-1 ml-4">
+                                <li>前往 <a href="https://sheets.google.com" target="_blank" class="text-blue-600 underline">Google Sheets</a> 建立新的試算表</li>
+                                <li>將試算表命名為「班級圖書館」</li>
+                                <li>建立三個工作表（分頁）：
+                                    <ul class="list-disc list-inside ml-4 mt-1 space-y-1">
+                                        <li><strong>書籍清單</strong></li>
+                                        <li><strong>學生名單</strong></li>
+                                        <li><strong>借閱記錄</strong></li>
+                                    </ul>
+                                </li>
+                                <li>在每個工作表的第一行加入標題：
+                                    <div class="bg-gray-100 p-2 rounded mt-1 text-xs">
+                                        <strong>書籍清單：</strong> ID | 書名 | 作者 | 圖示 | 狀態 | 借閱者姓名 | 借閱者座號<br>
+                                        <strong>學生名單：</strong> ID | 姓名 | 座號<br>
+                                        <strong>借閱記錄：</strong> 時間 | 學生姓名 | 座號 | 書籍名稱 | 動作
+                                    </div>
+                                </li>
+                            </ol>
+                        </div>
+                        
+                        <div>
+                            <h3 class="font-bold text-gray-800 mb-2">步驟 2: 建立 Google Apps Script</h3>
+                            <ol class="list-decimal list-inside space-y-1 ml-4">
+                                <li>在 Google Sheets 中，點擊「擴充功能」→「Apps Script」</li>
+                                <li>刪除預設的 myFunction，貼上以下程式碼：</li>
+                            </ol>
+                            <div class="bg-gray-900 text-green-400 p-4 rounded-lg mt-2 text-xs font-mono overflow-x-auto max-h-96">
+<pre>// ===== 班級圖書館 Google Apps Script 完整程式碼 =====
+// 版本：4.0 (統一使用 GET 方法避免 CORS 問題)
+
+function doGet(e) {
+  const action = e.parameter.action;
+  const callback = e.parameter.callback;
+  
+  let result = {};
+  
+  try {
+    console.log(\`收到 GET 請求，操作：\${action}\`);
+    
+    if (action === 'test') {
+      result = {
+        success: true,
+        message: '連線測試成功',
+        timestamp: new Date().toISOString(),
+        version: '4.0'
+      };
+      
+    } else if (action === 'loadAll') {
+      result = {
+        books: loadBooks(),
+        students: loadStudents(),
+        records: loadRecords(),
+        timestamp: new Date().toISOString()
+      };
+      
+    } else if (action === 'save') {
+      const type = e.parameter.type;
+      const dataString = e.parameter.data;
+      
+      if (!type || !dataString) {
+        throw new Error('缺少必要參數：type 或 data');
+      }
+      
+      const data = JSON.parse(dataString);
+      console.log(\`儲存 \${type} 資料，共 \${data.length} 筆\`);
+      
+      if (type === 'books') {
+        clearSheet('書籍清單');
+        appendBooks(data);
+      } else if (type === 'students') {
+        clearSheet('學生名單');
+        appendStudents(data);
+      } else if (type === 'records') {
+        clearSheet('借閱記錄');
+        appendRecords(data);
+      } else {
+        throw new Error(\`不支援的資料類型：\${type}\`);
+      }
+      
+      result = {
+        success: true,
+        message: \`成功儲存 \${data.length} 筆 \${type} 資料\`,
+        dataCount: data.length,
+        type: type
+      };
+      
+    } else {
+      result = {
+        error: \`不支援的 GET 操作：\${action}\`
+      };
+    }
+    
+  } catch (error) {
+    console.error('doGet 錯誤:', error);
+    result = {
+      error: error.toString(),
+      stack: error.stack
+    };
+  }
+  
+  const jsonString = JSON.stringify(result);
+  
+  if (callback) {
+    return ContentService.createTextOutput(callback + '(' + jsonString + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  
+  return ContentService.createTextOutput(jsonString)
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  let result = {};
+  
+  try {
+    console.log('收到 POST 請求');
+    console.log('原始內容:', e.postData.contents);
+    
+    const requestData = JSON.parse(e.postData.contents);
+    const action = requestData.action;
+    
+    console.log(\`POST 操作：\${action}\`);
+    
+    if (action === 'save') {
+      const type = requestData.type;
+      const data = requestData.data || [];
+      
+      console.log(\`儲存 \${type} 資料，共 \${data.length} 筆\`);
+      
+      if (type === 'books') {
+        clearSheet('書籍清單');
+        appendBooks(data);
+      } else if (type === 'students') {
+        clearSheet('學生名單');
+        appendStudents(data);
+      } else if (type === 'records') {
+        clearSheet('借閱記錄');
+        appendRecords(data);
+      } else {
+        throw new Error(\`不支援的資料類型：\${type}\`);
+      }
+      
+      result = {
+        success: true,
+        message: \`成功儲存 \${data.length} 筆 \${type} 資料\`,
+        dataCount: data.length,
+        type: type
+      };
+      
+    } else {
+      result = {
+        error: \`不支援的 POST 操作：\${action}\`
+      };
+    }
+    
+  } catch (error) {
+    console.error('doPost 錯誤:', error);
+    result = {
+      error: error.toString(),
+      stack: error.stack
+    };
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify(result))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function loadBooks() {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('書籍清單');
+    if (!sheet) {
+      return [];
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const books = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0]) {
+        books.push({
+          id: data[i][0],
+          title: data[i][1] || '',
+          author: data[i][2] || '',
+          emoji: data[i][3] || '📖',
+          available: data[i][4] !== '已借出',
+          borrower: data[i][5] && data[i][6] ? {
+            name: data[i][5],
+            number: data[i][6]
+          } : null
+        });
+      }
+    }
+    
+    return books;
+  } catch (error) {
+    console.error('載入書籍失敗:', error);
+    return [];
+  }
+}
+
+function loadStudents() {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('學生名單');
+    if (!sheet) {
+      return [];
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const students = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0]) {
+        students.push({
+          id: data[i][0],
+          name: data[i][1] || '',
+          number: data[i][2] || 0
+        });
+      }
+    }
+    
+    return students;
+  } catch (error) {
+    console.error('載入學生失敗:', error);
+    return [];
+  }
+}
+
+function loadRecords() {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('借閱記錄');
+    if (!sheet) {
+      return [];
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const records = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0]) {
+        records.push({
+          time: data[i][0],
+          student: data[i][1] || '',
+          number: data[i][2] || 0,
+          book: data[i][3] || '',
+          action: data[i][4] || ''
+        });
+      }
+    }
+    
+    return records;
+  } catch (error) {
+    console.error('載入記錄失敗:', error);
+    return [];
+  }
+}
+
+function clearSheet(sheetName) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+    if (!sheet) {
+      throw new Error(\`找不到「\${sheetName}」工作表\`);
+    }
+    
+    sheet.clear();
+    
+    let headers = [];
+    if (sheetName === '書籍清單') {
+      headers = ['ID', '書名', '作者', '圖示', '狀態', '借閱者姓名', '借閱者座號'];
+    } else if (sheetName === '學生名單') {
+      headers = ['ID', '姓名', '座號'];
+    } else if (sheetName === '借閱記錄') {
+      headers = ['時間', '學生姓名', '座號', '書籍名稱', '動作'];
+    }
+    
+    if (headers.length > 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    }
+    
+  } catch (error) {
+    console.error(\`清空工作表失敗 (\${sheetName}):\`, error);
+    throw error;
+  }
+}
+
+function appendBooks(books) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('書籍清單');
+    if (!sheet) {
+      throw new Error('找不到「書籍清單」工作表');
+    }
+    
+    if (books.length === 0) {
+      return;
+    }
+    
+    const data = [];
+    books.forEach(book => {
+      data.push([
+        book.id,
+        book.title,
+        book.author,
+        book.emoji,
+        book.available ? '可借閱' : '已借出',
+        book.borrower ? book.borrower.name : '',
+        book.borrower ? book.borrower.number : ''
+      ]);
+    });
+    
+    const lastRow = sheet.getLastRow();
+    sheet.getRange(lastRow + 1, 1, data.length, 7).setValues(data);
+    
+  } catch (error) {
+    console.error('附加書籍失敗:', error);
+    throw error;
+  }
+}
+
+function appendStudents(students) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('學生名單');
+    if (!sheet) {
+      throw new Error('找不到「學生名單」工作表');
+    }
+    
+    if (students.length === 0) {
+      return;
+    }
+    
+    const data = [];
+    students.forEach(student => {
+      data.push([
+        student.id,
+        student.name,
+        student.number
+      ]);
+    });
+    
+    const lastRow = sheet.getLastRow();
+    sheet.getRange(lastRow + 1, 1, data.length, 3).setValues(data);
+    
+  } catch (error) {
+    console.error('附加學生失敗:', error);
+    throw error;
+  }
+}
+
+function appendRecords(records) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('借閱記錄');
+    if (!sheet) {
+      throw new Error('找不到「借閱記錄」工作表');
+    }
+    
+    if (records.length === 0) {
+      return;
+    }
+    
+    const data = [];
+    records.forEach(record => {
+      data.push([
+        record.time,
+        record.student,
+        record.number,
+        record.book,
+        record.action
+      ]);
+    });
+    
+    const lastRow = sheet.getLastRow();
+    sheet.getRange(lastRow + 1, 1, data.length, 5).setValues(data);
+    
+  } catch (error) {
+    console.error('附加記錄失敗:', error);
+    throw error;
+  }
+}</pre>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h3 class="font-bold text-gray-800 mb-2">步驟 3: 部署 Web App</h3>
+                            <ol class="list-decimal list-inside space-y-1 ml-4">
+                                <li>點擊「部署」→「新增部署作業」</li>
+                                <li>選擇類型：「網頁應用程式」</li>
+                                <li>說明：填入「班級圖書館 API」</li>
+                                <li>執行身分：「我」</li>
+                                <li>具有存取權的使用者：「任何人」</li>
+                                <li>點擊「部署」</li>
+                                <li>複製產生的「網頁應用程式 URL」</li>
+                            </ol>
+                        </div>
+                        
+                        <div>
+                            <h3 class="font-bold text-gray-800 mb-2">步驟 4: 更新程式碼</h3>
+                            <div class="bg-yellow-50 p-3 rounded-lg">
+                                <p class="text-yellow-800 text-sm mb-2"><strong>⚠️ 需要更新的設定：</strong></p>
+                                <div class="font-mono text-xs bg-gray-100 p-2 rounded">
+                                    WEB_APP_URL: 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec'
+                                </div>
+                                <p class="text-yellow-700 text-xs mt-2">將 YOUR_SCRIPT_ID 替換為您的實際 Script ID</p>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-green-50 p-3 rounded-lg">
+                            <h3 class="font-bold text-green-800 mb-2">✅ Google Apps Script 的優點：</h3>
+                            <ul class="list-disc list-inside space-y-1 text-green-700">
+                                <li>完全免費，無使用限制</li>
+                                <li>設定簡單，無需複雜認證</li>
+                                <li>自動處理 Google Sheets 權限</li>
+                                <li>支援完整的 CRUD 操作</li>
+                                <li>高度可靠，由 Google 託管</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="bg-blue-50 p-3 rounded-lg">
+                            <h3 class="font-bold text-blue-800 mb-2">🔧 故障排除：</h3>
+                            <ul class="list-disc list-inside space-y-1 text-blue-700">
+                                <li>如果出現 404 錯誤：檢查 WEB_APP_URL 是否正確</li>
+                                <li>如果出現 403 錯誤：確認 Web App 權限設為「任何人」</li>
+                                <li>如果無法儲存：檢查工作表名稱是否正確</li>
+                                <li>如果連線失敗：嘗試重新部署 Web App</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="this.parentElement.parentElement.parentElement.remove()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                            我知道了
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(helpDiv);
+        }
+
+        // 初始化頁面
+        async function init() {
+            // 設置分頁切換
+            setupTabs();
+            
+            // 檢查是否已設定 URL
+            if (GOOGLE_APPS_SCRIPT_CONFIG.WEB_APP_URL === 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec') {
+                // 尚未設定，顯示設定提示
+                updateConnectionStatus('⚠️ 請先設定 Google Apps Script URL', 'yellow');
+            } else {
+                // 已設定 URL，顯示準備狀態但不自動載入
+                updateConnectionStatus('🔄 已設定 Google Apps Script，點擊「重新載入資料」開始使用', 'yellow');
+            }
+            
+            // 初始化空的顯示
+            updateAllDisplays();
+        }
+
+        // 更新所有顯示
+        function updateAllDisplays() {
+            updateStats();
+            renderBooks();
+            updateBookSelect();
+            updateStudentSelect();
+            renderStudentList();
+            renderRecords();
+            renderCurrentBorrowings();
+            updateTodayTransactions();
+        }
+
+        // 設置分頁功能
+        function setupTabs() {
+            const managementTab = document.getElementById('managementTab');
+            const borrowingTab = document.getElementById('borrowingTab');
+            const managementPage = document.getElementById('managementPage');
+            const borrowingPage = document.getElementById('borrowingPage');
+
+            borrowingTab.addEventListener('click', function() {
+                // 切換到借用分頁
+                borrowingTab.className = 'flex-1 py-3 px-6 rounded-lg font-medium transition-colors bg-blue-600 text-white';
+                managementTab.className = 'flex-1 py-3 px-6 rounded-lg font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200';
+                
+                borrowingPage.classList.remove('hidden');
+                managementPage.classList.add('hidden');
+                
+                // 更新借用頁面的資料
+                renderCurrentBorrowings();
+                updateTodayTransactions();
+            });
+
+            managementTab.addEventListener('click', function() {
+                // 切換到管理分頁
+                managementTab.className = 'flex-1 py-3 px-6 rounded-lg font-medium transition-colors bg-blue-600 text-white';
+                borrowingTab.className = 'flex-1 py-3 px-6 rounded-lg font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200';
+                
+                managementPage.classList.remove('hidden');
+                borrowingPage.classList.add('hidden');
+            });
+        }
+
+        // 渲染目前借閱狀況
+        function renderCurrentBorrowings() {
+            const container = document.getElementById('currentBorrowings');
+            const borrowedBooks = books.filter(book => !book.available);
+            
+            if (borrowedBooks.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-500 py-8">目前沒有書籍被借出</div>';
+                return;
+            }
+
+            container.innerHTML = borrowedBooks.map(book => `
+                <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div class="flex items-center space-x-4">
+                        <div class="text-2xl">${book.emoji}</div>
+                        <div>
+                            <div class="font-medium text-gray-800">${book.title}</div>
+                            <div class="text-sm text-gray-600">${book.author}</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="text-right">
+                            <div class="font-medium text-blue-600">${book.borrower.name}</div>
+                            <div class="text-sm text-gray-500">${book.borrower.number}號</div>
+                        </div>
+                        <button onclick="quickReturnBook(${book.id})" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg text-sm font-medium transition-colors">
+                            ✅ 還書
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 更新今日借還統計
+        function updateTodayTransactions() {
+            const today = new Date().toDateString();
+            const todayRecords = borrowRecords.filter(record => {
+                const recordDate = new Date(record.time).toDateString();
+                return recordDate === today;
+            });
+            
+            document.getElementById('todayTransactions').textContent = todayRecords.length;
+        }
+
+        // 更新統計資訊
+        function updateStats() {
+            const total = books.length;
+            const available = books.filter(book => book.available).length;
+            const borrowed = total - available;
+
+            // 管理頁面統計
+            document.getElementById('totalBooks').textContent = total;
+            document.getElementById('totalStudents').textContent = students.length;
+            document.getElementById('totalRecords').textContent = borrowRecords.length;
+            
+            // 借用頁面統計
+            const availableBooksElements = document.querySelectorAll('#availableBooks');
+            const borrowedBooksElements = document.querySelectorAll('#borrowedBooks');
+            
+            availableBooksElements.forEach(el => el.textContent = available);
+            borrowedBooksElements.forEach(el => el.textContent = borrowed);
+        }
+
+        // 渲染書籍卡片
+        function renderBooks() {
+            const grid = document.getElementById('booksGrid');
+            grid.innerHTML = '';
+
+            books.forEach(book => {
+                const card = document.createElement('div');
+                card.className = `book-card bg-gradient-to-br from-white to-gray-50 rounded-lg p-4 border-2 ${book.available ? 'border-green-200' : 'border-red-200 borrowed'}`;
+                
+                card.innerHTML = `
+                    <div class="text-center">
+                        <div class="text-4xl mb-3">${book.emoji}</div>
+                        <h3 class="font-bold text-gray-800 mb-1">${book.title}</h3>
+                        <p class="text-sm text-gray-600 mb-3">${book.author}</p>
+                        <div class="flex items-center justify-center">
+                            ${book.available ? 
+                                '<span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">✅ 可借閱</span>' :
+                                `<span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">📚 ${book.borrower.name}(${book.borrower.number}號)</span>`
+                            }
+                        </div>
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
+        }
+
+        // 更新書籍選擇下拉選單
+        function updateBookSelect() {
+            const select = document.getElementById('bookSelect');
+            select.innerHTML = '<option value="">請選擇書籍</option>';
+
+            // 按照書名筆畫排序
+            const sortedBooks = [...books].sort((a, b) => a.title.localeCompare(b.title, 'zh-TW'));
+
+            sortedBooks.forEach(book => {
+                const option = document.createElement('option');
+                option.value = book.id;
+                option.textContent = `${book.emoji} ${book.title} ${book.available ? '(可借)' : '(已借出)'}`;
+                select.appendChild(option);
+            });
+        }
+
+        // 更新學生選擇下拉選單
+        function updateStudentSelect() {
+            const select = document.getElementById('studentSelect');
+            select.innerHTML = '<option value="">請選擇學生</option>';
+
+            // 按座號由小到大排序
+            const sortedStudents = [...students].sort((a, b) => a.number - b.number);
+
+            sortedStudents.forEach(student => {
+                const option = document.createElement('option');
+                option.value = student.id;
+                option.textContent = `${student.name} (${student.number}號)`;
+                select.appendChild(option);
+            });
+        }
+
+        // 渲染學生清單
+        function renderStudentList() {
+            const list = document.getElementById('studentListDisplay');
+            const count = document.getElementById('studentCount');
+            
+            count.textContent = students.length;
+            
+            if (students.length === 0) {
+                list.innerHTML = '<div class="text-gray-400">尚未新增學生</div>';
+                return;
+            }
+
+            const sortedStudents = [...students].sort((a, b) => a.number - b.number);
+            list.innerHTML = sortedStudents.map(student => 
+                `<span class="inline-block bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs mr-2 mb-1">${student.name} (${student.number}號)</span>`
+            ).join('');
+        }
+
+        // 渲染借閱記錄
+        function renderRecords() {
+            const tbody = document.getElementById('recordsTable');
+            tbody.innerHTML = '';
+
+            borrowRecords.slice(-10).reverse().forEach(record => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-100 hover:bg-gray-50';
+                
+                row.innerHTML = `
+                    <td class="px-4 py-3 text-sm text-gray-600">${record.time}</td>
+                    <td class="px-4 py-3 text-sm font-medium text-gray-800">${record.student}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600">${record.number}號</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${record.book}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 rounded-full text-xs font-medium ${record.action === '借書' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}">
+                            ${record.action === '借書' ? '📚 借書' : '✅ 還書'}
+                        </span>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+
+        // 借書功能
+        function borrowBook(studentId, bookId) {
+            const student = students.find(s => s.id == studentId);
+            const book = books.find(b => b.id == bookId);
+            
+            if (!student) {
+                alert('找不到該學生！');
+                return false;
+            }
+            
+            if (!book || !book.available) {
+                alert('這本書目前無法借閱！');
+                return false;
+            }
+
+            book.available = false;
+            book.borrower = { name: student.name, number: student.number };
+
+            // 添加借閱記錄
+            const now = new Date();
+            const timeString = now.toLocaleString('zh-TW', { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+
+            borrowRecords.push({
+                time: timeString,
+                student: student.name,
+                number: student.number,
+                book: book.title,
+                action: '借書'
+            });
+
+            return true;
+        }
+
+        // 還書功能
+        function returnBook(studentId, bookId) {
+            const student = students.find(s => s.id == studentId);
+            const book = books.find(b => b.id == bookId);
+            
+            if (!student) {
+                alert('找不到該學生！');
+                return false;
+            }
+            
+            if (!book || book.available) {
+                alert('這本書目前不在借閱狀態！');
+                return false;
+            }
+
+            if (book.borrower.name !== student.name || book.borrower.number != student.number) {
+                alert('只有借書的同學才能還書喔！');
+                return false;
+            }
+
+            book.available = true;
+            book.borrower = null;
+
+            // 添加還書記錄
+            const now = new Date();
+            const timeString = now.toLocaleString('zh-TW', { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+
+            borrowRecords.push({
+                time: timeString,
+                student: student.name,
+                number: student.number,
+                book: book.title,
+                action: '還書'
+            });
+
+            return true;
+        }
+
+        // 帶儲存功能的借書函數
+        async function borrowBookWithSave(studentId, bookId) {
+            if (borrowBook(studentId, bookId)) {
+                // 儲存到 Google Sheets
+                await saveToGoogleSheets('books', books);
+                await saveToGoogleSheets('records', borrowRecords);
+                return true;
+            }
+            return false;
+        }
+
+        // 帶儲存功能的還書函數
+        async function returnBookWithSave(studentId, bookId) {
+            if (returnBook(studentId, bookId)) {
+                // 儲存到 Google Sheets
+                await saveToGoogleSheets('books', books);
+                await saveToGoogleSheets('records', borrowRecords);
+                return true;
+            }
+            return false;
+        }
+
+        // 快速還書功能
+        async function quickReturnBook(bookId) {
+            const book = books.find(b => b.id == bookId);
+            
+            if (!book || book.available) {
+                alert('這本書目前不在借閱狀態！');
+                return;
+            }
+
+            const borrowerName = book.borrower.name;
+            const borrowerNumber = book.borrower.number;
+
+            // 執行還書
+            book.available = true;
+            const borrower = book.borrower;
+            book.borrower = null;
+
+            // 添加還書記錄
+            const now = new Date();
+            const timeString = now.toLocaleString('zh-TW', { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+
+            borrowRecords.push({
+                time: timeString,
+                student: borrowerName,
+                number: borrowerNumber,
+                book: book.title,
+                action: '還書'
+            });
+
+            // 儲存到 Google Sheets
+            await saveToGoogleSheets('books', books);
+            await saveToGoogleSheets('records', borrowRecords);
+            
+            alert(`${borrowerName} 同學成功歸還《${book.title}》！`);
+            
+            // 更新頁面
+            updateAllDisplays();
+        }
+
+        // 隨機選擇圖示
+        function getRandomEmoji() {
+            const emojis = ['📖', '📚', '📝', '🎨', '🔬', '🌟', '🎭', '🏰', '🐉', '🦄'];
+            return emojis[Math.floor(Math.random() * emojis.length)];
+        }
+
+        // 新增圖書表單處理
+        document.getElementById('addBookForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const bookListText = document.getElementById('bookList').value.trim();
+            
+            if (!bookListText) {
+                alert('請輸入圖書清單！');
+                return;
+            }
+
+            const lines = bookListText.split('\n').filter(line => line.trim());
+            let successCount = 0;
+            let duplicateCount = 0;
+            let errorCount = 0;
+
+            lines.forEach(line => {
+                const trimmedLine = line.trim();
+                if (!trimmedLine) return;
+
+                // 解析 "書名 - 作者" 格式
+                const parts = trimmedLine.split(' - ');
+                if (parts.length !== 2) {
+                    errorCount++;
+                    return;
+                }
+
+                const title = parts[0].trim();
+                const author = parts[1].trim();
+
+                if (!title || !author) {
+                    errorCount++;
+                    return;
+                }
+
+                // 檢查書名是否重複
+                if (books.some(book => book.title === title)) {
+                    duplicateCount++;
+                    return;
+                }
+
+                // 新增書籍
+                const newBook = {
+                    id: nextBookId++,
+                    title: title,
+                    author: author,
+                    emoji: getRandomEmoji(),
+                    available: true,
+                    borrower: null
+                };
+                
+                books.push(newBook);
+                successCount++;
+            });
+
+            // 顯示結果
+            let message = `批量匯入完成！\n成功新增：${successCount} 本書`;
+            if (duplicateCount > 0) message += `\n重複跳過：${duplicateCount} 本書`;
+            if (errorCount > 0) message += `\n格式錯誤：${errorCount} 筆資料`;
+            
+            // 儲存到 Google Sheets
+            if (successCount > 0) {
+                console.log('正在儲存書籍資料到 Google Sheets...', books);
+                const saveSuccess = await saveToGoogleSheets('books', books);
+                if (saveSuccess) {
+                    message += '\n✅ 已同步到 Google Sheets';
+                } else {
+                    message += '\n❌ Google Sheets 同步失敗';
+                }
+            }
+            
+            alert(message);
+            
+            // 清空表單
+            this.reset();
+            
+            // 更新頁面
+            updateStats();
+            renderBooks();
+            updateBookSelect();
+        });
+
+        // 新增學生表單處理
+        document.getElementById('addStudentForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const studentListText = document.getElementById('studentList').value.trim();
+            
+            if (!studentListText) {
+                alert('請輸入學生清單！');
+                return;
+            }
+
+            const lines = studentListText.split('\n').filter(line => line.trim());
+            let successCount = 0;
+            let duplicateCount = 0;
+            let errorCount = 0;
+
+            lines.forEach(line => {
+                const trimmedLine = line.trim();
+                if (!trimmedLine) return;
+
+                // 解析座號和姓名（前面的數字是座號，後面是姓名）
+                const match = trimmedLine.match(/^(\d+)(.+)$/);
+                if (!match) {
+                    errorCount++;
+                    return;
+                }
+
+                const number = parseInt(match[1]);
+                const name = match[2].trim();
+
+                if (!name || number <= 0) {
+                    errorCount++;
+                    return;
+                }
+
+                // 檢查座號是否重複
+                if (students.some(student => student.number === number)) {
+                    duplicateCount++;
+                    return;
+                }
+
+                // 檢查姓名是否重複
+                if (students.some(student => student.name === name)) {
+                    duplicateCount++;
+                    return;
+                }
+
+                // 新增學生
+                const newStudent = {
+                    id: nextStudentId++,
+                    name: name,
+                    number: number
+                };
+                
+                students.push(newStudent);
+                successCount++;
+            });
+
+            // 顯示結果
+            let message = `批量匯入完成！\n成功新增：${successCount} 位學生`;
+            if (duplicateCount > 0) message += `\n重複跳過：${duplicateCount} 位學生`;
+            if (errorCount > 0) message += `\n格式錯誤：${errorCount} 筆資料`;
+            
+            // 儲存到 Google Sheets
+            if (successCount > 0) {
+                console.log('正在儲存學生資料到 Google Sheets...', students);
+                const saveSuccess = await saveToGoogleSheets('students', students);
+                if (saveSuccess) {
+                    message += '\n✅ 已同步到 Google Sheets';
+                } else {
+                    message += '\n❌ Google Sheets 同步失敗';
+                }
+            }
+            
+            alert(message);
+            
+            // 清空表單
+            this.reset();
+            
+            // 更新頁面
+            updateStats();
+            updateStudentSelect();
+            renderStudentList();
+        });
+
+        // 表單提交處理
+        document.getElementById('borrowForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const studentId = document.getElementById('studentSelect').value;
+            const bookId = document.getElementById('bookSelect').value;
+
+            if (!studentId || !bookId) {
+                alert('請選擇學生和書籍！');
+                return;
+            }
+
+            const student = students.find(s => s.id == studentId);
+            const book = books.find(b => b.id == bookId);
+
+            if (await borrowBookWithSave(studentId, bookId)) {
+                alert(`${student.name} 同學成功借閱《${book.title}》！`);
+                
+                // 重置表單
+                this.reset();
+                
+                // 更新頁面
+                updateAllDisplays();
+            }
+        });
+
+        // 還書按鈕處理
+        document.getElementById('returnBtn').addEventListener('click', async function() {
+            const studentId = document.getElementById('studentSelect').value;
+            const bookId = document.getElementById('bookSelect').value;
+
+            if (!studentId || !bookId) {
+                alert('請選擇學生和書籍！');
+                return;
+            }
+
+            const student = students.find(s => s.id == studentId);
+            const book = books.find(b => b.id == bookId);
+
+            if (await returnBookWithSave(studentId, bookId)) {
+                alert(`${student.name} 同學成功歸還《${book.title}》！`);
+                
+                // 重置表單
+                document.getElementById('borrowForm').reset();
+                
+                // 更新頁面
+                updateAllDisplays();
+            }
+        });
+
+        // 匯出資料功能 - 針對 iframe 環境優化
+        function exportData() {
+            console.log('🔄 開始匯出資料...');
+            try {
+                const exportData = {
+                    books: books,
+                    students: students,
+                    borrowRecords: borrowRecords,
+                    nextBookId: nextBookId,
+                    nextStudentId: nextStudentId,
+                    exportDate: new Date().toISOString(),
+                    version: '1.0'
+                };
+
+                console.log('📦 準備匯出的資料:', exportData);
+                console.log('📊 資料統計:', {
+                    書籍數量: books.length,
+                    學生數量: students.length,
+                    借閱記錄: borrowRecords.length
+                });
+
+                const dataStr = JSON.stringify(exportData, null, 2);
+                console.log('📄 JSON 字串長度:', dataStr.length);
+                
+                // 建立檔案名稱
+                const now = new Date();
+                const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+                const timeStr = now.toTimeString().slice(0, 5).replace(/:/g, '');
+                const filename = `班級圖書館資料_${dateStr}_${timeStr}.json`;
+                console.log('📁 檔案名稱:', filename);
+                
+                // 由於 iframe 環境限制，直接使用複製到剪貼簿的方式
+                console.log('📋 使用剪貼簿方式匯出（適用於 iframe 環境）');
+                
+                // 建立隱藏的文字區域
+                const textarea = document.createElement('textarea');
+                textarea.value = dataStr;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                textarea.style.top = '-9999px';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                
+                try {
+                    // 選取並複製文字
+                    textarea.select();
+                    textarea.setSelectionRange(0, 99999); // 確保在行動裝置上也能選取
+                    
+                    const successful = document.execCommand('copy');
+                    console.log('📋 複製結果:', successful);
+                    
+                    // 移除文字區域
+                    document.body.removeChild(textarea);
+                    
+                    if (successful) {
+                        // 顯示成功訊息和操作指引
+                        const message = `✅ 資料已成功複製到剪貼簿！\n\n📊 匯出內容：\n• ${books.length} 本書籍\n• ${students.length} 位學生\n• ${borrowRecords.length} 筆借閱記錄\n\n📁 建議檔案名稱：${filename}\n\n💾 請按照以下步驟儲存檔案：\n\n1️⃣ 開啟文字編輯器（如記事本、VS Code）\n2️⃣ 貼上剪貼簿內容（Ctrl+V 或 Cmd+V）\n3️⃣ 另存新檔，檔名設為：${filename}\n4️⃣ 檔案類型選擇「所有檔案」或「.json」\n\n🔄 之後可以使用「匯入資料」功能載入此檔案`;
+                        
+                        showSuccessMessage('資料已複製到剪貼簿！');
+                        alert(message);
+                        
+                        console.log('✅ 資料已成功複製到剪貼簿');
+                        
+                    } else {
+                        throw new Error('複製到剪貼簿失敗');
+                    }
+                    
+                } catch (copyError) {
+                    console.error('❌ 複製失敗:', copyError);
+                    
+                    // 移除文字區域（如果還存在）
+                    if (textarea.parentNode) {
+                        document.body.removeChild(textarea);
+                    }
+                    
+                    // 顯示資料在彈出視窗中，讓使用者手動複製
+                    showDataModal(dataStr, filename);
+                }
+                
+            } catch (error) {
+                console.error('❌ 匯出失敗:', error);
+                alert(`❌ 匯出資料時發生錯誤：\n\n${error.message}\n\n請嘗試重新整理頁面後再試。`);
+            }
+        }
+
+        // 顯示資料彈出視窗供手動複製
+        function showDataModal(dataStr, filename) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+                    <div class="p-6 border-b border-gray-200">
+                        <h2 class="text-xl font-bold text-gray-800">📤 匯出資料</h2>
+                        <p class="text-gray-600 mt-2">請複製以下資料並儲存為 JSON 檔案</p>
+                        <p class="text-sm text-blue-600 mt-1">建議檔名：${filename}</p>
+                    </div>
+                    <div class="flex-1 p-6 overflow-hidden">
+                        <div class="mb-4">
+                            <button id="copyDataBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg mr-2">
+                                📋 複製資料
+                            </button>
+                            <button id="selectAllBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg">
+                                🔍 全選
+                            </button>
+                        </div>
+                        <textarea id="dataTextarea" class="w-full h-96 p-4 border border-gray-300 rounded-lg font-mono text-sm resize-none" readonly>${dataStr}</textarea>
+                    </div>
+                    <div class="p-6 border-t border-gray-200 bg-gray-50">
+                        <div class="text-sm text-gray-600 mb-4">
+                            <p><strong>💾 儲存步驟：</strong></p>
+                            <p>1. 點擊「📋 複製資料」或手動選取全部文字</p>
+                            <p>2. 開啟文字編輯器（記事本、VS Code 等）</p>
+                            <p>3. 貼上內容並另存為 .json 檔案</p>
+                            <p>4. 之後可使用「匯入資料」功能載入</p>
+                        </div>
+                        <div class="flex justify-end">
+                            <button id="closeModalBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg">
+                                關閉
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // 綁定事件
+            const copyBtn = modal.querySelector('#copyDataBtn');
+            const selectAllBtn = modal.querySelector('#selectAllBtn');
+            const closeBtn = modal.querySelector('#closeModalBtn');
+            const textarea = modal.querySelector('#dataTextarea');
+            
+            copyBtn.addEventListener('click', () => {
+                textarea.select();
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        copyBtn.textContent = '✅ 已複製！';
+                        copyBtn.className = 'bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg mr-2';
+                        setTimeout(() => {
+                            copyBtn.textContent = '📋 複製資料';
+                            copyBtn.className = 'bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg mr-2';
+                        }, 2000);
+                    } else {
+                        alert('複製失敗，請手動選取文字複製');
+                    }
+                } catch (e) {
+                    alert('複製失敗，請手動選取文字複製');
+                }
+            });
+            
+            selectAllBtn.addEventListener('click', () => {
+                textarea.select();
+                textarea.setSelectionRange(0, 99999);
+            });
+            
+            closeBtn.addEventListener('click', () => {
+                document.body.removeChild(modal);
+            });
+            
+            // 點擊背景關閉
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            });
+            
+            // ESC 鍵關閉
+            const handleEsc = (e) => {
+                if (e.key === 'Escape') {
+                    document.body.removeChild(modal);
+                    document.removeEventListener('keydown', handleEsc);
+                }
+            };
+            document.addEventListener('keydown', handleEsc);
+        }
+
+        // 匯入資料功能
+        async function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                const importedData = JSON.parse(text);
+                
+                // 驗證資料格式
+                if (!importedData.books || !importedData.students || !importedData.borrowRecords) {
+                    showInfoModal('❌ 檔案格式不正確！請選擇正確的資料檔案。');
+                    event.target.value = '';
+                    return;
+                }
+
+                // 顯示匯入確認對話框
+                showImportConfirmModal(importedData, event);
+                
+            } catch (error) {
+                console.error('匯入資料失敗:', error);
+                showInfoModal('❌ 匯入失敗！請確認檔案格式正確。');
+                event.target.value = '';
+            }
+        }
+
+        // 顯示匯入確認對話框
+        function showImportConfirmModal(importedData, fileEvent) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-xl max-w-2xl w-full">
+                    <div class="p-6 border-b border-gray-200">
+                        <h2 class="text-xl font-bold text-blue-600 flex items-center">
+                            <span class="mr-2">📥</span>
+                            匯入資料確認
+                        </h2>
+                    </div>
+                    <div class="p-6">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                            <h3 class="font-bold text-blue-800 mb-2">📊 即將匯入的資料</h3>
+                            <div class="text-blue-700 space-y-1">
+                                <p>• ${importedData.books.length} 本書籍</p>
+                                <p>• ${importedData.students.length} 位學生</p>
+                                <p>• ${importedData.borrowRecords.length} 筆借閱記錄</p>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                            <h3 class="font-bold text-yellow-800 mb-2">⚠️ 重要提醒</h3>
+                            <p class="text-yellow-700">這將會覆蓋現有的所有資料！</p>
+                            <div class="text-sm text-yellow-600 mt-2">
+                                <p><strong>目前資料：</strong></p>
+                                <ul class="list-disc list-inside mt-1 space-y-1">
+                                    <li>${books.length} 本書籍</li>
+                                    <li>${students.length} 位學生</li>
+                                    <li>${borrowRecords.length} 筆借閱記錄</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                            <h3 class="font-bold text-green-800 mb-2">💡 建議</h3>
+                            <p class="text-green-700">如果需要保留現有資料，請先點擊「匯出資料」進行備份！</p>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                請輸入「確認匯入」來確認操作：
+                            </label>
+                            <input type="text" id="importConfirmInput" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="請輸入：確認匯入">
+                        </div>
+                        
+                        <div id="importConfirmError" class="text-red-600 text-sm mb-4 hidden">
+                            ❌ 請正確輸入「確認匯入」
+                        </div>
+                    </div>
+                    <div class="p-6 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+                        <button id="cancelImportBtn" class="px-4 py-2 text-gray-600 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors">
+                            取消
+                        </button>
+                        <button id="confirmImportBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                            確認匯入
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            const confirmInput = modal.querySelector('#importConfirmInput');
+            const confirmError = modal.querySelector('#importConfirmError');
+            const cancelBtn = modal.querySelector('#cancelImportBtn');
+            const confirmBtn = modal.querySelector('#confirmImportBtn');
+            
+            // 聚焦到輸入框
+            setTimeout(() => confirmInput.focus(), 100);
+            
+            // 取消按鈕
+            cancelBtn.addEventListener('click', () => {
+                console.log('❌ 使用者取消匯入操作');
+                fileEvent.target.value = '';
+                document.body.removeChild(modal);
+            });
+            
+            // 確認按鈕
+            confirmBtn.addEventListener('click', async () => {
+                const inputValue = confirmInput.value.trim();
+                if (inputValue !== '確認匯入') {
+                    confirmError.classList.remove('hidden');
+                    confirmInput.focus();
+                    confirmInput.select();
+                    return;
+                }
+                
+                console.log('✅ 使用者確認匯入，開始執行...');
+                document.body.removeChild(modal);
+                await executeImportData(importedData, fileEvent);
+            });
+            
+            // Enter 鍵確認
+            confirmInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    confirmBtn.click();
+                }
+            });
+            
+            // 輸入時隱藏錯誤訊息
+            confirmInput.addEventListener('input', () => {
+                confirmError.classList.add('hidden');
+            });
+            
+            // 點擊背景關閉
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    console.log('❌ 使用者取消匯入操作');
+                    fileEvent.target.value = '';
+                    document.body.removeChild(modal);
+                }
+            });
+            
+            // ESC 鍵關閉
+            const handleEsc = (e) => {
+                if (e.key === 'Escape') {
+                    console.log('❌ 使用者取消匯入操作');
+                    fileEvent.target.value = '';
+                    document.body.removeChild(modal);
+                    document.removeEventListener('keydown', handleEsc);
+                }
+            };
+            document.addEventListener('keydown', handleEsc);
+        }
+
+        // 執行匯入資料
+        async function executeImportData(importedData, fileEvent) {
+            try {
+                showLoadingMessage('正在匯入資料...');
+                
+                // 匯入資料
+                books = importedData.books || [];
+                students = importedData.students || [];
+                borrowRecords = importedData.borrowRecords || [];
+                nextBookId = importedData.nextBookId || (Math.max(...books.map(b => b.id), 0) + 1);
+                nextStudentId = importedData.nextStudentId || (Math.max(...students.map(s => s.id), 0) + 1);
+
+                // 立即更新頁面顯示
+                updateAllDisplays();
+                
+                hideLoadingMessage();
+                showSuccessMessage('資料匯入完成！');
+
+                // 異步儲存到 Google Sheets
+                syncImportToGoogleSheets();
+                
+                // 顯示成功訊息
+                const successMessage = `✅ 資料匯入完成！\n\n成功載入：\n• ${books.length} 本書籍\n• ${students.length} 位學生\n• ${borrowRecords.length} 筆借閱記錄\n\n正在同步到 Google Sheets...`;
+                
+                showInfoModal(successMessage);
+                
+            } catch (error) {
+                console.error('匯入資料失敗:', error);
+                hideLoadingMessage();
+                showInfoModal(`❌ 匯入失敗！\n\n錯誤詳情：${error.message}`);
+            }
+            
+            // 清空檔案選擇
+            fileEvent.target.value = '';
+        }
+
+        // 異步同步匯入資料到 Google Sheets
+        async function syncImportToGoogleSheets() {
+            try {
+                showLoadingMessage('正在同步到 Google Sheets...');
+                
+                let syncSuccess = true;
+                let syncErrors = [];
+                
+                // 同步書籍資料
+                try {
+                    await saveToGoogleSheets('books', books);
+                    console.log('✅ 書籍資料已同步');
+                } catch (error) {
+                    syncSuccess = false;
+                    syncErrors.push('書籍資料同步失敗');
+                    console.error('❌ 書籍資料同步失敗:', error);
+                }
+                
+                // 同步學生資料
+                try {
+                    await saveToGoogleSheets('students', students);
+                    console.log('✅ 學生資料已同步');
+                } catch (error) {
+                    syncSuccess = false;
+                    syncErrors.push('學生資料同步失敗');
+                    console.error('❌ 學生資料同步失敗:', error);
+                }
+                
+                // 同步借閱記錄
+                try {
+                    await saveToGoogleSheets('records', borrowRecords);
+                    console.log('✅ 借閱記錄已同步');
+                } catch (error) {
+                    syncSuccess = false;
+                    syncErrors.push('借閱記錄同步失敗');
+                    console.error('❌ 借閱記錄同步失敗:', error);
+                }
+                
+                hideLoadingMessage();
+                
+                // 顯示同步結果
+                if (syncSuccess) {
+                    updateConnectionStatus('✅ 資料已匯入並同步', 'green');
+                    showSuccessMessage('✅ 已成功同步到 Google Sheets');
+                } else {
+                    updateConnectionStatus('⚠️ 匯入完成，同步部分失敗', 'yellow');
+                    const errorMessage = `⚠️ Google Sheets 同步問題：\n\n• ${syncErrors.join('\n• ')}\n\n💡 本地資料已匯入成功，可以正常使用。\n稍後可點擊「重新載入資料」確認同步狀態。`;
+                    showInfoModal(errorMessage);
+                }
+                
+            } catch (error) {
+                console.error('❌ 同步匯入資料失敗:', error);
+                hideLoadingMessage();
+                updateConnectionStatus('⚠️ 匯入完成，同步失敗', 'yellow');
+                
+                const errorMessage = `⚠️ 本地資料已匯入，但 Google Sheets 同步失敗！\n\n錯誤詳情：${error.message}\n\n💡 本地資料已成功匯入，您可以繼續使用系統。\n稍後可嘗試重新同步。`;
+                showInfoModal(errorMessage);
+            }
+        }
+
+        // 清空資料功能
+        function clearAllData() {
+            console.log('🗑️ 開始清空資料流程...');
+            
+            // 檢查是否有資料
+            const totalData = books.length + students.length + borrowRecords.length;
+            if (totalData === 0) {
+                showInfoModal('📭 目前沒有任何資料需要清空！');
+                return;
+            }
+            
+            console.log('📊 目前資料統計:', { 
+                books: books.length, 
+                students: students.length, 
+                records: borrowRecords.length 
+            });
+            
+            // 顯示清空確認對話框
+            showClearDataConfirmModal();
+        }
+
+        // 顯示清空資料確認對話框
+        function showClearDataConfirmModal() {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-xl max-w-2xl w-full">
+                    <div class="p-6 border-b border-gray-200">
+                        <h2 class="text-xl font-bold text-red-600 flex items-center">
+                            <span class="mr-2">🗑️</span>
+                            清空所有資料
+                        </h2>
+                    </div>
+                    <div class="p-6">
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                            <h3 class="font-bold text-red-800 mb-2">⚠️ 重要警告</h3>
+                            <p class="text-red-700 mb-3">此操作將會永久刪除所有資料，無法復原！</p>
+                            <div class="text-sm text-red-600">
+                                <p><strong>目前資料：</strong></p>
+                                <ul class="list-disc list-inside mt-1 space-y-1">
+                                    <li>${books.length} 本書籍</li>
+                                    <li>${students.length} 位學生</li>
+                                    <li>${borrowRecords.length} 筆借閱記錄</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                            <h3 class="font-bold text-blue-800 mb-2">💡 建議</h3>
+                            <p class="text-blue-700">強烈建議先點擊「匯出資料」進行備份！</p>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                請輸入「清空資料」來確認操作：
+                            </label>
+                            <input type="text" id="confirmInput" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="請輸入：清空資料">
+                        </div>
+                        
+                        <div id="confirmError" class="text-red-600 text-sm mb-4 hidden">
+                            ❌ 請正確輸入「清空資料」
+                        </div>
+                    </div>
+                    <div class="p-6 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+                        <button id="cancelClearBtn" class="px-4 py-2 text-gray-600 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors">
+                            取消
+                        </button>
+                        <button id="confirmClearBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                            確認清空
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            const confirmInput = modal.querySelector('#confirmInput');
+            const confirmError = modal.querySelector('#confirmError');
+            const cancelBtn = modal.querySelector('#cancelClearBtn');
+            const confirmBtn = modal.querySelector('#confirmClearBtn');
+            
+            // 聚焦到輸入框
+            setTimeout(() => confirmInput.focus(), 100);
+            
+            // 取消按鈕
+            cancelBtn.addEventListener('click', () => {
+                console.log('❌ 使用者取消清空操作');
+                document.body.removeChild(modal);
+            });
+            
+            // 確認按鈕
+            confirmBtn.addEventListener('click', () => {
+                const inputValue = confirmInput.value.trim();
+                if (inputValue !== '清空資料') {
+                    confirmError.classList.remove('hidden');
+                    confirmInput.focus();
+                    confirmInput.select();
+                    return;
+                }
+                
+                console.log('⚠️ 使用者確認清空，開始執行...');
+                document.body.removeChild(modal);
+                executeClearData();
+            });
+            
+            // Enter 鍵確認
+            confirmInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    confirmBtn.click();
+                }
+            });
+            
+            // 輸入時隱藏錯誤訊息
+            confirmInput.addEventListener('input', () => {
+                confirmError.classList.add('hidden');
+            });
+            
+            // 點擊背景關閉
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    console.log('❌ 使用者取消清空操作');
+                    document.body.removeChild(modal);
+                }
+            });
+            
+            // ESC 鍵關閉
+            const handleEsc = (e) => {
+                if (e.key === 'Escape') {
+                    console.log('❌ 使用者取消清空操作');
+                    document.body.removeChild(modal);
+                    document.removeEventListener('keydown', handleEsc);
+                }
+            };
+            document.addEventListener('keydown', handleEsc);
+        }
+
+        // 執行清空資料
+        function executeClearData() {
+            // 記錄清空前的統計
+            const beforeStats = {
+                books: books.length,
+                students: students.length,
+                records: borrowRecords.length
+            };
+            
+            // 立即清空所有資料
+            books.splice(0, books.length);
+            students.splice(0, students.length);
+            borrowRecords.splice(0, borrowRecords.length);
+            nextBookId = 1;
+            nextStudentId = 1;
+
+            console.log('🧹 本地資料已清空');
+
+            // 立即更新頁面顯示
+            updateAllDisplays();
+            
+            // 顯示立即結果
+            showSuccessMessage('本地資料已清空完成！');
+            
+            // 異步同步到 Google Sheets
+            syncClearToGoogleSheets(beforeStats);
+        }
+
+        // 顯示資訊對話框
+        function showInfoModal(message) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-xl max-w-md w-full">
+                    <div class="p-6 text-center">
+                        <div class="text-4xl mb-4">ℹ️</div>
+                        <p class="text-gray-800 mb-6">${message}</p>
+                        <button onclick="this.closest('.fixed').remove()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                            確定
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // 點擊背景關閉
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            });
+        }
+
+        // 異步同步清空資料到 Google Sheets
+        async function syncClearToGoogleSheets(beforeStats) {
+            try {
+                showLoadingMessage('正在同步到 Google Sheets...');
+                
+                let syncSuccess = true;
+                let syncErrors = [];
+                
+                // 同步清空的資料到 Google Sheets
+                try {
+                    await saveToGoogleSheets('books', []);
+                    console.log('✅ 書籍資料已清空並同步');
+                } catch (error) {
+                    syncSuccess = false;
+                    syncErrors.push('書籍資料同步失敗');
+                    console.error('❌ 書籍資料同步失敗:', error);
+                }
+                
+                try {
+                    await saveToGoogleSheets('students', []);
+                    console.log('✅ 學生資料已清空並同步');
+                } catch (error) {
+                    syncSuccess = false;
+                    syncErrors.push('學生資料同步失敗');
+                    console.error('❌ 學生資料同步失敗:', error);
+                }
+                
+                try {
+                    await saveToGoogleSheets('records', []);
+                    console.log('✅ 借閱記錄已清空並同步');
+                } catch (error) {
+                    syncSuccess = false;
+                    syncErrors.push('借閱記錄同步失敗');
+                    console.error('❌ 借閱記錄同步失敗:', error);
+                }
+                
+                hideLoadingMessage();
+                
+                // 顯示最終結果
+                let resultMessage = `🗑️ 資料清空完成！\n\n已清空：\n• ${beforeStats.books} 本書籍\n• ${beforeStats.students} 位學生\n• ${beforeStats.records} 筆借閱記錄`;
+                
+                if (syncSuccess) {
+                    resultMessage += '\n\n✅ 已成功同步到 Google Sheets';
+                    updateConnectionStatus('✅ 資料已清空並同步', 'green');
+                } else {
+                    resultMessage += '\n\n⚠️ Google Sheets 同步問題：\n• ' + syncErrors.join('\n• ');
+                    resultMessage += '\n\n💡 本地資料已清空，Google Sheets 可能需要手動清理或重新連線。';
+                    updateConnectionStatus('⚠️ 本地已清空，同步部分失敗', 'yellow');
+                }
+                
+                console.log('✅ 清空資料流程完成');
+                alert(resultMessage);
+                
+            } catch (error) {
+                console.error('❌ 同步清空資料失敗:', error);
+                hideLoadingMessage();
+                
+                let errorMessage = '⚠️ 本地資料已清空，但 Google Sheets 同步失敗！\n\n';
+                
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    errorMessage += '🔧 網路連線問題：\n';
+                    errorMessage += '• 請檢查網路連線\n';
+                    errorMessage += '• 稍後可點擊「重新載入資料」確認同步狀態\n\n';
+                } else if (error.message.includes('HTTP 403') || error.message.includes('HTTP 404')) {
+                    errorMessage += '🔧 Google Apps Script 問題：\n';
+                    errorMessage += '• 請檢查 Google Apps Script 設定\n';
+                    errorMessage += '• 可能需要重新部署 Web App\n\n';
+                } else {
+                    errorMessage += '🔧 未知錯誤：\n';
+                    errorMessage += '• 請稍後重試同步\n';
+                    errorMessage += '• 或手動清理 Google Sheets\n\n';
+                }
+                
+                errorMessage += `錯誤詳情：${error.message}\n\n`;
+                errorMessage += '💡 本地資料已成功清空，您可以繼續使用系統。';
+                
+                updateConnectionStatus('⚠️ 本地已清空，同步失敗', 'yellow');
+                alert(errorMessage);
+            }
+        }
+
+        // JSON檔觀看器功能
+        async function viewJsonFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            try {
+                console.log('📄 開始讀取 JSON 檔案:', file.name);
+                const text = await file.text();
+                
+                let jsonData;
+                try {
+                    jsonData = JSON.parse(text);
+                } catch (parseError) {
+                    showJsonViewerModal(null, file.name, `JSON 格式錯誤：${parseError.message}`, text);
+                    event.target.value = '';
+                    return;
+                }
+                
+                console.log('✅ JSON 檔案解析成功');
+                showJsonViewerModal(jsonData, file.name, null, text);
+                
+            } catch (error) {
+                console.error('❌ 讀取檔案失敗:', error);
+                alert(`❌ 讀取檔案失敗：${error.message}`);
+            }
+            
+            // 清空檔案選擇
+            event.target.value = '';
+        }
+
+        // 顯示JSON觀看器對話框
+        function showJsonViewerModal(jsonData, fileName, errorMessage, rawText) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            
+            let contentHtml = '';
+            let statsHtml = '';
+            
+            if (errorMessage) {
+                // 錯誤情況
+                contentHtml = `
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+                        <h3 class="font-bold text-red-800 mb-2">❌ 檔案解析錯誤</h3>
+                        <p class="text-red-700">${errorMessage}</p>
+                    </div>
+                    <div class="mb-4">
+                        <h3 class="font-bold text-gray-800 mb-2">📄 原始內容：</h3>
+                        <textarea class="w-full h-64 p-3 border border-gray-300 rounded-lg font-mono text-sm bg-gray-50" readonly>${rawText}</textarea>
+                    </div>
+                `;
+            } else {
+                // 成功解析
+                const analysis = analyzeJsonData(jsonData);
+                
+                statsHtml = `
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                            <div class="text-2xl font-bold text-blue-600">${analysis.books}</div>
+                            <div class="text-sm text-blue-700">書籍數量</div>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                            <div class="text-2xl font-bold text-green-600">${analysis.students}</div>
+                            <div class="text-sm text-green-700">學生數量</div>
+                        </div>
+                        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+                            <div class="text-2xl font-bold text-purple-600">${analysis.records}</div>
+                            <div class="text-sm text-purple-700">借閱記錄</div>
+                        </div>
+                    </div>
+                `;
+                
+                // 格式化顯示
+                const formattedJson = JSON.stringify(jsonData, null, 2);
+                
+                contentHtml = `
+                    ${statsHtml}
+                    
+                    ${analysis.isLibraryData ? `
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                            <h3 class="font-bold text-green-800 mb-2">✅ 圖書館資料檔案</h3>
+                            <p class="text-green-700">這是一個有效的班級圖書館資料檔案！</p>
+                            <div class="mt-2 text-sm text-green-600">
+                                <p>• 匯出時間：${analysis.exportDate || '未知'}</p>
+                                <p>• 資料版本：${analysis.version || '未知'}</p>
+                                <p>• 相容性：${analysis.compatible ? '✅ 相容' : '⚠️ 可能不相容'}</p>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                            <h3 class="font-bold text-yellow-800 mb-2">⚠️ 非圖書館資料檔案</h3>
+                            <p class="text-yellow-700">這不是標準的班級圖書館資料檔案格式。</p>
+                        </div>
+                    `}
+                    
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-bold text-gray-800">📄 JSON 內容：</h3>
+                            <div class="space-x-2">
+                                <button id="copyJsonBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm">
+                                    📋 複製
+                                </button>
+                                <button id="toggleFormatBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-sm">
+                                    🔄 切換格式
+                                </button>
+                            </div>
+                        </div>
+                        <textarea id="jsonContent" class="w-full h-80 p-3 border border-gray-300 rounded-lg font-mono text-xs bg-gray-50 resize-none" readonly>${formattedJson}</textarea>
+                    </div>
+                `;
+            }
+            
+            modal.innerHTML = `
+                <div class="bg-white rounded-xl max-w-6xl w-full max-h-[95vh] flex flex-col">
+                    <div class="p-6 border-b border-gray-200 flex-shrink-0">
+                        <h2 class="text-xl font-bold text-indigo-600 flex items-center">
+                            <span class="mr-2">👁️</span>
+                            JSON檔觀看器
+                        </h2>
+                        <p class="text-gray-600 mt-1">檔案：${fileName}</p>
+                    </div>
+                    <div class="flex-1 p-6 overflow-y-auto">
+                        ${contentHtml}
+                    </div>
+                    <div class="p-6 border-t border-gray-200 bg-gray-50 flex justify-between items-center flex-shrink-0">
+                        <div class="text-sm text-gray-600">
+                            檔案大小：${(rawText.length / 1024).toFixed(2)} KB
+                        </div>
+                        <div class="space-x-3">
+                            ${jsonData && analyzeJsonData(jsonData).isLibraryData ? `
+                                <button id="importFromViewerBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
+                                    📥 匯入此資料
+                                </button>
+                            ` : ''}
+                            <button id="closeViewerBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg">
+                                關閉
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // 綁定事件
+            const closeBtn = modal.querySelector('#closeViewerBtn');
+            const copyBtn = modal.querySelector('#copyJsonBtn');
+            const toggleBtn = modal.querySelector('#toggleFormatBtn');
+            const importBtn = modal.querySelector('#importFromViewerBtn');
+            const jsonTextarea = modal.querySelector('#jsonContent');
+            
+            let isFormatted = true;
+            
+            closeBtn?.addEventListener('click', () => {
+                document.body.removeChild(modal);
+            });
+            
+            copyBtn?.addEventListener('click', () => {
+                jsonTextarea.select();
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        copyBtn.textContent = '✅ 已複製！';
+                        copyBtn.className = 'bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm';
+                        setTimeout(() => {
+                            copyBtn.textContent = '📋 複製';
+                            copyBtn.className = 'bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm';
+                        }, 2000);
+                    }
+                } catch (e) {
+                    alert('複製失敗，請手動選取複製');
+                }
+            });
+            
+            toggleBtn?.addEventListener('click', () => {
+                if (isFormatted) {
+                    jsonTextarea.value = JSON.stringify(jsonData);
+                    toggleBtn.textContent = '📖 格式化';
+                    isFormatted = false;
+                } else {
+                    jsonTextarea.value = JSON.stringify(jsonData, null, 2);
+                    toggleBtn.textContent = '📄 壓縮';
+                    isFormatted = true;
+                }
+            });
+            
+            importBtn?.addEventListener('click', () => {
+                document.body.removeChild(modal);
+                showImportConfirmModal(jsonData, { target: { value: '' } });
+            });
+            
+            // 點擊背景關閉
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            });
+            
+            // ESC 鍵關閉
+            const handleEsc = (e) => {
+                if (e.key === 'Escape') {
+                    document.body.removeChild(modal);
+                    document.removeEventListener('keydown', handleEsc);
+                }
+            };
+            document.addEventListener('keydown', handleEsc);
+        }
+
+        // 分析JSON資料
+        function analyzeJsonData(data) {
+            const analysis = {
+                books: 0,
+                students: 0,
+                records: 0,
+                isLibraryData: false,
+                compatible: false,
+                exportDate: null,
+                version: null
+            };
+            
+            if (!data || typeof data !== 'object') {
+                return analysis;
+            }
+            
+            // 檢查是否為圖書館資料格式
+            if (data.books && Array.isArray(data.books)) {
+                analysis.books = data.books.length;
+                analysis.isLibraryData = true;
+            }
+            
+            if (data.students && Array.isArray(data.students)) {
+                analysis.students = data.students.length;
+                analysis.isLibraryData = true;
+            }
+            
+            if (data.borrowRecords && Array.isArray(data.borrowRecords)) {
+                analysis.records = data.borrowRecords.length;
+                analysis.isLibraryData = true;
+            }
+            
+            // 檢查相容性
+            if (analysis.isLibraryData) {
+                analysis.compatible = true;
+                
+                // 檢查書籍格式
+                if (data.books && data.books.length > 0) {
+                    const sampleBook = data.books[0];
+                    if (!sampleBook.id || !sampleBook.title || typeof sampleBook.available !== 'boolean') {
+                        analysis.compatible = false;
+                    }
+                }
+                
+                // 檢查學生格式
+                if (data.students && data.students.length > 0) {
+                    const sampleStudent = data.students[0];
+                    if (!sampleStudent.id || !sampleStudent.name || !sampleStudent.number) {
+                        analysis.compatible = false;
+                    }
+                }
+            }
+            
+            // 取得匯出資訊
+            analysis.exportDate = data.exportDate;
+            analysis.version = data.version;
+            
+            return analysis;
+        }
+
+        // 測試功能：診斷 Google Apps Script 連線
+        async function addTestBook() {
+            try {
+                showLoadingMessage('正在診斷 Google Apps Script 連線...');
+                
+                console.log('🔍 開始 Google Apps Script 診斷...');
+                console.log('WEB_APP_URL:', GOOGLE_APPS_SCRIPT_CONFIG.WEB_APP_URL);
+                console.log('SHEET_URL:', GOOGLE_APPS_SCRIPT_CONFIG.SHEET_URL);
+                
+                let diagnosticResults = [];
+                
+                // 步驟 1: 檢查設定
+                console.log('🔍 步驟 1: 檢查設定');
+                if (GOOGLE_APPS_SCRIPT_CONFIG.WEB_APP_URL === 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec') {
+                    diagnosticResults.push('❌ 尚未設定 WEB_APP_URL');
+                } else {
+                    diagnosticResults.push('✅ WEB_APP_URL 已設定');
+                }
+                
+                // 步驟 2: 測試基本連線
+                console.log('🔍 步驟 2: 測試基本連線');
+                try {
+                    const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.WEB_APP_URL + '?action=test', {
+                        method: 'GET',
+                        mode: 'cors'
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success) {
+                            diagnosticResults.push('✅ 基本連線測試成功');
+                            diagnosticResults.push(`✅ 回應時間：${result.timestamp}`);
+                        } else {
+                            diagnosticResults.push('❌ 連線測試失敗：回應格式錯誤');
+                        }
+                    } else {
+                        diagnosticResults.push(`❌ HTTP 錯誤：${response.status} ${response.statusText}`);
+                    }
+                } catch (error) {
+                    diagnosticResults.push(`❌ 連線失敗：${error.message}`);
+                }
+                
+                // 步驟 3: 測試資料載入
+                console.log('🔍 步驟 3: 測試資料載入');
+                try {
+                    const response = await fetch(GOOGLE_APPS_SCRIPT_CONFIG.WEB_APP_URL + '?action=loadAll', {
+                        method: 'GET',
+                        mode: 'cors'
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.error) {
+                            diagnosticResults.push(`❌ 資料載入錯誤：${data.error}`);
+                        } else {
+                            diagnosticResults.push('✅ 資料載入測試成功');
+                            diagnosticResults.push(`📚 書籍資料：${(data.books || []).length} 筆`);
+                            diagnosticResults.push(`👥 學生資料：${(data.students || []).length} 筆`);
+                            diagnosticResults.push(`📋 借閱記錄：${(data.records || []).length} 筆`);
+                        }
+                    } else {
+                        diagnosticResults.push(`❌ 資料載入 HTTP 錯誤：${response.status}`);
+                    }
+                } catch (error) {
+                    diagnosticResults.push(`❌ 資料載入失敗：${error.message}`);
+                }
+                
+                hideLoadingMessage();
+                
+                // 顯示診斷結果
+                let resultMessage = '🔍 Google Apps Script 診斷結果：\n\n';
+                resultMessage += diagnosticResults.join('\n') + '\n\n';
+                
+                // 提供解決方案
+                if (GOOGLE_APPS_SCRIPT_CONFIG.WEB_APP_URL === 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec') {
+                    resultMessage += '🛠️ 需要完成的設定：\n\n';
+                    resultMessage += '1. 建立 Google Sheets 試算表\n';
+                    resultMessage += '2. 建立 Google Apps Script 專案\n';
+                    resultMessage += '3. 部署為 Web App\n';
+                    resultMessage += '4. 將 WEB_APP_URL 更新到程式碼中\n';
+                    resultMessage += '5. 點擊「Google Apps Script 設定說明」查看詳細步驟\n\n';
+                } else {
+                    // 檢查是否有錯誤
+                    const hasErrors = diagnosticResults.some(result => result.includes('❌'));
+                    if (hasErrors) {
+                        resultMessage += '🔧 故障排除建議：\n\n';
+                        if (diagnosticResults.some(r => r.includes('HTTP 404'))) {
+                            resultMessage += '• 404 錯誤：檢查 WEB_APP_URL 是否正確\n';
+                        }
+                        if (diagnosticResults.some(r => r.includes('HTTP 403'))) {
+                            resultMessage += '• 403 錯誤：確認 Web App 權限設為「任何人」\n';
+                        }
+                        if (diagnosticResults.some(r => r.includes('Failed to fetch'))) {
+                            resultMessage += '• 連線失敗：檢查網路連線和 CORS 設定\n';
+                        }
+                        if (diagnosticResults.some(r => r.includes('工作表'))) {
+                            resultMessage += '• 工作表錯誤：確認試算表有正確的工作表名稱\n';
+                        }
+                        resultMessage += '• 嘗試重新部署 Web App\n';
+                        resultMessage += '• 檢查 Google Apps Script 程式碼是否正確\n\n';
+                    } else {
+                        resultMessage += '🎉 所有測試都通過了！系統已準備就緒。\n\n';
+                    }
+                }
+                
+                resultMessage += '✅ Google Apps Script 的優點：\n';
+                resultMessage += '• 完全免費，無使用限制\n';
+                resultMessage += '• 設定簡單，無需複雜認證\n';
+                resultMessage += '• 自動處理 Google Sheets 權限\n';
+                resultMessage += '• 支援完整的 CRUD 操作\n';
+                resultMessage += '• 高度可靠，由 Google 託管\n\n';
+                
+                resultMessage += `🔗 你的試算表連結：\n${GOOGLE_APPS_SCRIPT_CONFIG.SHEET_URL}`;
+                
+                alert(resultMessage);
+                
+            } catch (error) {
+                console.error('❌ 診斷過程失敗:', error);
+                hideLoadingMessage();
+                alert(`❌ 診斷過程中發生錯誤：\n${error.message}\n\n請檢查網路連線和設定。`);
+            }
+        }
+
+        // 頁面載入時初始化
+        init();
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9883af9d725a8098',t:'MTc1OTQwMjcyMS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
